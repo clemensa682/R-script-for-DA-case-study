@@ -1,0 +1,376 @@
+---
+title: "Bike Share Data Analysis Project"
+author: "Alex Clemens"
+date: "10/1/2021"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load data, echo=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+bike_data1 <- read.csv("~/Downloads/bike_trip_data_20200901_20210831/202009-divvy-tripdata.csv")
+bike_data2 <- read.csv("~/Downloads/bike_trip_data_20200901_20210831/202010-divvy-tripdata.csv")
+bike_data3 <- read.csv("~/Downloads/bike_trip_data_20200901_20210831/202011-divvy-tripdata.csv")
+bike_data4 <- read.csv("~/Downloads/bike_trip_data_20200901_20210831/202012-divvy-tripdata.csv")
+bike_data5 <- read.csv("~/Downloads/bike_trip_data_20200901_20210831/202101-divvy-tripdata.csv")
+bike_data6 <- read.csv("~/Downloads/bike_trip_data_20200901_20210831/202102-divvy-tripdata.csv")
+bike_data7 <- read.csv("~/Downloads/bike_trip_data_20200901_20210831/202103-divvy-tripdata.csv")
+bike_data8 <- read.csv("~/Downloads/bike_trip_data_20200901_20210831/202104-divvy-tripdata.csv")
+bike_data9 <- read.csv("~/Downloads/bike_trip_data_20200901_20210831/202105-divvy-tripdata.csv")
+bike_data10 <- read.csv("~/Downloads/bike_trip_data_20200901_20210831/202106-divvy-tripdata.csv")
+bike_data11 <- read.csv("~/Downloads/bike_trip_data_20200901_20210831/202107-divvy-tripdata.csv")
+bike_data12 <- read.csv("~/Downloads/bike_trip_data_20200901_20210831/202108-divvy-tripdata.csv")
+```
+
+## Analysis of Rider Data from a Bike Share Company
+
+### Data Sources
+
+  The data for this project comes from a bike-share company based in Chicago, whose publicly available ridership data was suggested by Google for use in this case study. The company is called something different, but, for the purposes of this project, I will refer to it as "Cyclistic."
+```{r data sample, echo=FALSE}
+  head(bike_data1)
+```
+  The above is a sample of the raw data used for this project. It includes several types of data, such as the street addresses of the start and end points of each ride, that are not directly relevant to the purpose of the analysis.
+
+### Purpose of the Analysis
+
+  The main purpose of this analysis is to determine whether there are any significant differences in bike-share usage patterns between members of Cyclistic and nonmembers. Several significant patterns are indeed evident in the available data. These will be articulated below.
+
+### Notes on data manipulations necessary to create the plots
+
+  In order to create the plots used in this analysis, it was necessary to combine the available monthly data sets into an annual data set, create separate columns for month, day, year, and days of the week, and calculate ride lengths. Data for quality control rides and rides of impossible (i.e., negative) length was excised from the annual data set after those steps were executed. Most plots in this analysis use subsets of the data that either include or exclude data points based on ride length.
+
+  Some of the earlier data sets used inconsistent data types (e.g., storing station IDs as integers rather than as characters), so where this problem existed, it was necessary to type-cast the relevant data points so that the tables could be combined.
+
+```{r data manipulation 1, echo=FALSE}
+bike_data1 <- mutate(bike_data1, start_station_id = as.character(start_station_id), end_station_id = as.character(end_station_id))
+bike_data2 <- mutate(bike_data2, start_station_id = as.character(start_station_id), end_station_id = as.character(end_station_id))
+bike_data3 <- mutate(bike_data3, start_station_id = as.character(start_station_id), end_station_id = as.character(end_station_id))
+bike_data_all <- bind_rows(bike_data1, bike_data2, bike_data3, bike_data4, bike_data5, bike_data6, bike_data7, bike_data8, bike_data9, bike_data10, bike_data11, bike_data12)
+```
+
+
+## Analysis and Visualizatons
+
+  The first step was to determine whether a significant and potentially explicable difference existed in the raw numbers of members and nonmembers (or "casual" users, as they were called in the data). No significant pattern emerged from this data, as the numbers of member rides and nonmember rides were roughly equivalent over the specified time frame.
+
+```{r data -- member-casual, echo=FALSE}
+table(bike_data_all$member_casual)
+```
+
+  Since this produced no interesting conclusions, the next step was to transform the data so that it could be used to create useful plots. The initial data set, which was used to create the above table, apparently included some "rides" that were done by employees for quality assurance purposes, so these data points were removed. There were also some noticeably flawed data points, e.g., rides where the calculated length was somehow less than zero seconds. These were removed as well. The organization of the data within the frame was improved by creating columns for month, day, year, and the days of the week, instead of a single column for the date and time, which would allow more potential avenues for analysis. After this process, a statistical summary of ride lengths was created.
+
+```{r data manipulation 2, echo=FALSE}
+bike_data_all$date <- as.Date(bike_data_all$started_at) # lines 25-29 create columns that allow for aggregation of data by months, years, days, and days of the week as opposed to simply aggregating by started_at
+bike_data_all$month <- format(as.Date(bike_data_all$date), "%m")
+bike_data_all$day <- format(as.Date(bike_data_all$date), "%d")
+bike_data_all$year <- format(as.Date(bike_data_all$date), "%Y")
+bike_data_all$day_of_week <- format(as.Date(bike_data_all$date), "%A")
+bike_data_all$ride_length <- difftime(bike_data_all$ended_at, bike_data_all$started_at) # creates calculation of ride length
+bike_data_all$ride_length <- as.numeric(as.character(bike_data_all$ride_length)) # converts the difftime object created in line 30 to a numeric format
+bike_data_v2 <- bike_data_all[!(bike_data_all$start_station_name=="HQ QR" | bike_data_all$ride_length<0),] # creates a version of the bike_data_all set without QA rides and rides of negative length
+summary(bike_data_v2$ride_length)
+```
+
+  The maximum value indicated that the data contained some significant outliers, which could themselves be potentially interesting subjects of analysis. The minimum, 0, most likely reflected  In general, the quartiles were what could reasonably be expected of a commuter bike-share service, falling within the range of approximately 7 to 22 minutes.
+
+  Now that a statistical summary of the entire data set existed, the next logical step was to break the data down by rider class. The results of this are shown here:
+
+```{r stat summ table, echo=FALSE}
+bike_data_v2$day_of_week <- ordered(bike_data_v2$day_of_week, levels = c("Sunday","Monday", "Tuesday", "Wednesday","Thursday", "Friday","Saturday")) # properly orders the days of the week in the bike_data_v2 set
+```
+  This table shows mean ride lengths by membership status:
+```{r stat summ 1, echo=FALSE}
+aggregate(bike_data_v2$ride_length ~ bike_data_v2$member_casual, FUN = mean) # creates a table that splits out the mean ride lengths for members and "casual" riders
+```
+  This table shows the minimum ride length by membership status (it isn't very interesting because, as it turns out, they are both 0):
+```{r stat summ 2, echo=FALSE}
+aggregate(bike_data_v2$ride_length ~ bike_data_v2$member_casual, FUN = min) # same table but with minimum values instead of means
+```
+  This table shows maximum ride lengths (which are immediately suspicious, because they are apparently both in the millions of seconds):
+```{r stat summ 3, echo=FALSE}
+aggregate(bike_data_v2$ride_length ~ bike_data_v2$member_casual, FUN = max) # same table but with maximum values
+```
+  This table shows the median values for each membership status:
+```{r stat summ 4, echo=FALSE}
+aggregate(bike_data_v2$ride_length ~ bike_data_v2$member_casual, FUN = median) # finds the median values for members and casuals
+```
+  And this one shows the mean ride length in seconds on each day of the week:
+```{r stat summ 5, echo=FALSE}
+aggregate(bike_data_v2$ride_length ~ bike_data_v2$member_casual + bike_data_v2$day_of_week, FUN = mean) # finds averages for each day of the week by rider group
+```
+
+
+
+  The third step in this analysis was to determine whether a significant difference in bike-share use could be ascertained depending on the day of the week. As shown in the plot below, an increase in bike-share use on weekends for nonmembers was immediately apparent. A smaller, yet still potentially significant, uptick in usage occurred on Fridays as compared to other weekdays, which could reflect a pattern of non-commuter use of Cyclistic bikes by nonmember users.
+
+  For members, there was a noticeable drop in usage on Sundays as compared to any other day of the week. Members use Cyclistic bikes at approximately equivalent rates on weekdays and Saturdays.
+
+```{r bike data -- number of rides plot 1, echo=FALSE, message=FALSE, warning=FALSE}
+bike_data_v2 %>%
+  mutate(weekday = wday(started_at, label = TRUE)) %>%
+  group_by(member_casual, weekday) %>%
+  summarize(number_of_rides = n(), average_duration = mean(ride_length)) %>%
+  arrange(member_casual, weekday) %>%
+  ggplot(aes(x = weekday, y = number_of_rides, fill = member_casual)) + geom_col(position = "dodge") + labs(title = "Number of Rides by Membership Status", subtitle = "Separated by day of the week", x = "Day", y = "Number of Rides", fill = "Membership Status", caption = "Based on rider data collected Sep 2020 - Aug 2021")
+```
+
+  The next step was to see whether there was any significant difference in average ride length between members and nonmembers. The following plot represents the data for average ride length in seconds from the table above in a more readable format. 
+
+  The data show that nonmembers consistently used Cyclistic bikes for longer rides than members over the period for which data is available. The data also suggested that members take fewer but longer rides, on average, on Sundays. For both membership statuses, weekday rides are markedly shorter than weekend rides. The average duration of nonmember rides, in general, was slightly more than twice the average duration of member rides.
+
+```{r average ride duration plot 1, echo=FALSE, message=FALSE, warning=FALSE}
+bike_data_v2 %>%
+  mutate(weekday = wday(started_at, label = TRUE)) %>%
+  group_by(member_casual, weekday) %>%
+  summarize(number_of_rides = n(), average_duration = mean(ride_length)) %>%
+  arrange(member_casual, weekday) %>%
+  ggplot(aes(x = weekday, y = average_duration, fill = member_casual)) + geom_col(position = "dodge") + labs(title = "Ride Duration by Membership Status", subtitle = "Separated by days of the week", x = "Day", y = "Average Duration (seconds)", fill = "Membership Status", caption = "Based on rider data collected 1 Sep 2020 - 31 Aug 2021")
+```
+
+#### What happens when the outlier data discovered in the initial analysis are removed?
+
+  Having discovered the strange outlier data at the upper end of the range, the next step was to see if the overall picture looked different without including them. To ascertain this, a subset of data that excluded ride lengths of over 86,400 seconds (i.e., a day) was used to create the next two plots.
+```{r data manipulation 3, echo=FALSE}
+bike_data_v3 <- bike_data_v2[!(bike_data_v2$ride_length>=86400),] # removes "rides" that lasted longer than a day
+```
+  The following two plots show the result of removing these overlong "rides" from the data set. Firstly, number of rides:
+```{r number of rides plot 2, echo=FALSE, message=FALSE, warning=FALSE}
+bike_data_v3 %>%
+  mutate(weekday = wday(started_at, label = TRUE)) %>%
+  group_by(member_casual, weekday) %>%
+  summarize(number_of_rides = n(), average_duration = mean(ride_length)) %>%
+  arrange(member_casual, weekday) %>%
+  ggplot(aes(x = weekday, y = number_of_rides, fill = member_casual)) + geom_col(position = "dodge") + labs(title = "Number of Rides by Membership Status",                                                 subtitle = "Excluding rides of more than 24 hours in length", x = "Day", y = "Number of Rides", fill = "Membership Status", 
+caption = "Based on rider data collected 1 Sep 2020 - 31 Aug 2021")
+```
+
+  Secondly, average ride length:
+
+```{r average ride duration plot 2, echo=FALSE, message=FALSE, warning=FALSE}
+bike_data_v3 %>%
+  mutate(weekday = wday(started_at, label = TRUE)) %>%
+  group_by(member_casual, weekday) %>%
+  summarize(number_of_rides = n(), average_duration = mean(ride_length)) %>%
+  arrange(member_casual, weekday) %>%
+  ggplot(aes(x = weekday, y = average_duration, fill = member_casual)) + geom_col(position = "dodge") + labs(title = "Ride Duration by Membership Status", subtitle = "Excluding rides of more than 24 hours in length", x = "Day", y = "Average Duration (seconds)", fill = "Membership Status", caption = "Based on rider data collected 1 Sep 2020 - 31 Aug 2021")
+```
+
+  The number of rides was nearly unchanged after adjusting the data to remove these outliers, but the average ride length for nonmembers decreased to the point that there were no longer any days of the week that displayed average ride lengths of over 2000 seconds. The average ride length for members displayed a smaller decrease. This suggests that the vast majority of extremely long "rides" in the data set were the result of some kind of peculiarity of nonmembers.
+
+  The initial data set contained some outlier data around the minimum, as well. Since the goal of this analysis was to establish the typical pattern of use for members and nonmembers, the next data subset removed entries for rides that started and ended at the same station and lasted less than a minute. In order for the data point to be removed, it had to meet both of these conditions, because removing all rides less than a minute long would remove a small but still potentially important subset of valid rides.
+
+```{r data manipulation 4, echo=FALSE}
+bike_data_v4 <- bike_data_v3[!((bike_data_v3$start_station_name == bike_data_v3$end_station_name) & (bike_data_v3$ride_length <= 60)),]
+```
+  After the removal of these points, the resulting plots looked like this:
+
+```{r number of rides plot 3, echo=FALSE, message=FALSE, warning=FALSE}
+bike_data_v4 %>%
+  mutate(weekday = wday(started_at, label = TRUE)) %>%
+  group_by(member_casual, weekday) %>%
+  summarize(number_of_rides = n(), average_duration = mean(ride_length)) %>%
+  arrange(member_casual, weekday) %>%
+  ggplot(aes(x = weekday, y = number_of_rides, fill = member_casual)) + geom_col(position = "dodge") + labs(title = "Number of Rides by Membership Status", 
+    subtitle = "Excluding rides of less than 60 seconds\nthat start and end at the same station", x = "Day", 
+    y = "Number of Rides", fill = "Membership Status", 
+    caption = "Based on rider data collected 1 Sep 2020 - 31 Aug 2021")
+```
+
+```{r average ride duration plot 3, echo=FALSE, message=FALSE, warning=FALSE}
+bike_data_v4 %>%
+  mutate(weekday = wday(started_at, label = TRUE)) %>%
+  group_by(member_casual, weekday) %>%
+  summarize(number_of_rides = n(), average_duration = mean(ride_length)) %>%
+  arrange(member_casual, weekday) %>%
+  ggplot(aes(x = weekday, y = average_duration, fill = member_casual)) + geom_col(position = "dodge") + labs(title = "Ride Duration by Membership Status", 
+    subtitle = "Excluding rides of less than 60 seconds\nthat start and end at the same station", x = "Day", 
+    y = "Average Duration (seconds)", fill = "Membership Status", 
+    caption = "Based on rider data collected 1 Sep 2020 - 31 Aug 2021")
+```
+
+  When these spurious "rides" are eliminated, the most readily apparent change in the data set is a noticeable decrease, representing over 1,000 spurious entries, in the number of nonmember rides on Saturdays. This implies that a small but significant number of nonmember "customers" do not actually ride Cyclistic bikes at all. Further analysis that is beyond the scope of this data set, perhaps by means of a customer survey or a technical review of the quality of the hardware used to collect data, is needed to discern what reason, if any, exists for this discrepancy.
+
+#### Narrowing down the data a bit further
+
+  Now that the data for rides with lengths greater than 24 hours and less than a minute has been eliminated, the analysis can proceed to focus in on what a more typical usage pattern may look like. For this purpose, the data points representing rides longer than 12 hours were eliminated. The plots generated from this data subset are substantially similar to the plots above, because only 3,083 rides in the data set were between 12 and 24 hours long. These data points will be useful, however, in the analysis of the outliers below, because a clear pattern does emerge for the lengths of member rides that fall into the 12-48 hour range.
+
+```{r data manipulation 5, echo=FALSE}
+bike_data_v5 <- bike_data_v4[!(bike_data_v4$ride_length >= 43200),]
+```
+  For our present purposes, attempting to discern typical rider behavior, the following plots are created when rides longer than 12 hours are excluded.
+
+```{r number of rides plot 4, echo=FALSE, message=FALSE, warning=FALSE}
+bike_data_v5 %>%
+  mutate(weekday = wday(started_at, label = TRUE)) %>%
+  group_by(member_casual, weekday) %>%
+  summarize(number_of_rides = n(), average_duration = mean(ride_length)) %>%
+  arrange(member_casual, weekday) %>%
+  ggplot(aes(x = weekday, y = number_of_rides, fill = member_casual)) + geom_col(position = "dodge") + labs(title = "Number of Rides by Membership Status", 
+    subtitle = "Excluding rides of more than 12 hours", x = "Day", 
+    y = "Number of Rides", fill = "Membership Status", 
+    caption = "Based on rider data collected 1 Sep 2020 - 31 Aug 2021")
+```
+
+```{r average ride duration plot 4, echo=FALSE, message=FALSE, warning=FALSE}
+bike_data_v5 %>%
+  mutate(weekday = wday(started_at, label = TRUE)) %>%
+  group_by(member_casual, weekday) %>%
+  summarize(number_of_rides = n(), average_duration = mean(ride_length)) %>%
+  arrange(member_casual, weekday) %>%
+  ggplot(aes(x = weekday, y = average_duration, fill = member_casual)) + geom_col(position = "dodge") + labs(title = "Ride Duration by Membership Status", 
+    subtitle = "Excluding rides of more than 12 hours", x = "Day", 
+    y = "Average Duration (seconds)", fill = "Membership Status", 
+    caption = "Based on rider data collected 1 Sep 2020 - 31 Aug 2021")
+```
+
+  The same general patterns observed in the initial data set appear to hold for this one as well. Nonmember rides are still consistently longer than members'. The preponderance of nonmember rides are still happening on weekends. Members appear less likely to use the service on Sundays, but when they do, they tend to use it for longer rides than in the middle of the week.
+
+  Interestingly, the length of members' rides seems to be nearly constant throughout this narrowing process, implying that members are generally less likely to use the Cyclistic bikes in unusual ways.
+
+```{r data manipulation 6, echo=FALSE}
+bike_data_v8 <- bike_data_v2[(bike_data_v2$ride_length < 7200) & !((bike_data_v2$ride_length <= 60) & (bike_data_v2$start_station_name == bike_data_v2$end_station_name)),]
+```
+  When rides longer than two hours are excluded, it becomes obvious that the vast majority of the data points that are excluded in this process represent nonmember activity.
+
+```{r number of rides plot 5, echo=FALSE, message=FALSE, warning=FALSE}
+bike_data_v8 %>%
+  mutate(weekday = wday(started_at, label = TRUE)) %>%
+  group_by(member_casual, weekday) %>%
+  summarize(number_of_rides = n(), average_duration = mean(ride_length)) %>%
+  arrange(member_casual, weekday) %>%
+  ggplot(aes(x = weekday, y = number_of_rides, fill = member_casual)) +    geom_col(position = "dodge") + labs(title = "Number of Rides by Membership Status", 
+  subtitle = "Only rides of less than 2 hours", x = "Day", 
+  y = "Number of Rides", fill = "Membership Status", 
+  caption = "Based on rider data collected 1 Sep 2020 - 31 Aug 2021")
+```
+
+```{r average ride duration plot 5, echo=FALSE, message=FALSE, warning=FALSE}
+bike_data_v8 %>%
+  mutate(weekday = wday(started_at, label = TRUE)) %>%
+  group_by(member_casual, weekday) %>%
+  summarize(number_of_rides = n(), average_duration = mean(ride_length)) %>%
+  arrange(member_casual, weekday) %>%
+  ggplot(aes(x = weekday, y = average_duration, fill = member_casual)) + geom_col(position = "dodge") + labs(title = "Ride Duration by Membership Status", subtitle = "Only rides of less than 2 hours", x = "Day", 
+y = "Average Duration (seconds)", fill = "Membership Status", 
+caption = "Based on rider data collected 1 Sep 2020 - 31 Aug 2021")
+```
+
+  Strikingly, the mean duration of member rides in this data set exhibits very little change, but the average duration of nonmember rides in this data set is approximately ten minutes shorter than that in the initial data set. This indicates, again, that the vast majority of outlier data points are the result of nonmember activity.
+
+  Throughout the process, it remains clear that the following three points are true: activity is higher for nonmembers on weekends and Fridays, activity is higher for members than for nonmembers on weekdays, and, regardless of membership status, Cyclistic rides on weekends tend to be longer.
+
+#### Looking at the middle 50% of the data
+
+```{r data manipulation 7, echo=FALSE}
+bike_data_v9 <- bike_data_v2[((bike_data_v2$ride_length <= 1397) & (bike_data_v2$ride_length >= 432)),]
+```
+  While ride lengths of less than two hours are closer to the typical behavior of a Cyclistic user than the initial data set, that set of observations likely still includes some atypical user behavior. In order to get a better idea of the typical patterns of bike use, the analysis proceeded to look at the middle 50% of observations as identified in the statistical summary above. This restricted the analysis to rides of lengths between 432 and 1,397 seconds.
+
+```{r middle 50 numbers, echo=FALSE, message=FALSE, warning=FALSE}
+bike_data_v9 %>%
+  mutate(weekday = wday(started_at, label = TRUE)) %>%
+  group_by(member_casual, weekday) %>%
+  summarize(number_of_rides = n(), average_duration = mean(ride_length)) %>%
+  arrange(member_casual, weekday) %>%
+  ggplot(aes(x = weekday, y = number_of_rides, fill = member_casual)) + geom_col(position = "dodge") + labs(title = "Number of Rides by Membership Status", subtitle = "Middle 50% of observed ride lengths", x = "Day", y = "Number of Rides", fill = "Membership Status", 
+ caption = "Based on rider data collected 1 Sep 2020 - 31 Aug 2021")
+```
+
+```{r middle 50 average ride duration, echo=FALSE, message=FALSE, warning=FALSE}
+bike_data_v9 %>%
+  mutate(weekday = wday(started_at, label = TRUE)) %>%
+  group_by(member_casual, weekday) %>%
+  summarize(number_of_rides = n(), average_duration = mean(ride_length)) %>%
+  arrange(member_casual, weekday) %>%
+  ggplot(aes(x = weekday, y = average_duration, fill = member_casual)) + geom_col(position = "dodge") + labs(title = "Ride Duration by Membership Status", subtitle = "Middle 50% of observed ride lengths", x = "Day", y = "Average Duration (seconds)", fill = "Membership Status", 
+caption = "Based on rider data collected 1 Sep 2020 - 31 Aug 2021")
+```
+
+  Even when the analysis is restricted to data points that fall within the middle 50% of ride lengths (making this subset perhaps the most representative of the typical Cyclistic rider that exists so far), the general trends of member rides being of shorter duration and nonmember usage increasing markedly on weekends and Fridays hold up. This suggests that these trends cannot be explained as mere artifacts of the way in which the analysis was conducted. Accordingly, these trends should be considered in the design of any future marketing campaign. Attention should also be paid to strategies that increase member engagement with the service on the weekends.
+
+#### A final topic of analysis: the overlong outliers
+
+```{r data manipulation 8, echo=FALSE}
+bike_data_v6 <- bike_data_v2[(bike_data_v2$ride_length >= 43200),]
+```
+  Some trends exist within the set of rides with lengths over 12 hours that may be worth considering. A few of those trends can be brought out with the same metrics used to analyze the more normal parts of the data set. To demonstrate this, here are the number of rides and average duration for a subset composed entirely of these overlong outliers:
+
+```{r overlong outliers number of rides, echo=FALSE, message=FALSE, warning=FALSE}
+bike_data_v6 %>%
+  mutate(weekday = wday(started_at, label = TRUE)) %>%
+  group_by(member_casual, weekday) %>%
+  summarize(number_of_rides = n(), average_duration = mean(ride_length)) %>%
+  arrange(member_casual, weekday) %>%
+  ggplot(aes(x = weekday, y = number_of_rides, fill = member_casual)) + geom_col(position = "dodge") + labs(title = "Number of Rides by Membership Status", 
+    subtitle = "Only rides of more than 12 hours", x = "Day", 
+    y = "Number of Rides", fill = "Membership Status", 
+    caption = "Based on rider data collected 1 Sep 2020 - 31 Aug 2021")
+```
+
+```{r overlong outliers average duration, echo=FALSE, message=FALSE, warning=FALSE}
+bike_data_v6 %>%
+  mutate(weekday = wday(started_at, label = TRUE)) %>%
+  group_by(member_casual, weekday) %>%
+  summarize(number_of_rides = n(), average_duration = mean(ride_length)) %>%
+  arrange(member_casual, weekday) %>%
+  ggplot(aes(x = weekday, y = average_duration, fill = member_casual)) + geom_col(position = "dodge") + labs(title = "Ride Duration by Membership Status", 
+  subtitle = "Only rides of more than 12 hours", x = "Day", 
+  y = "Average Duration (seconds)", fill = "Membership Status", 
+  caption = "Based on rider data collected 1 Sep 2020 - 31 Aug 2021")
+```
+
+  Interestingly, most of the same trends can be observed when the outliers are isolated. The exception to this is that nonmembers are apparently no more likely to use Cyclistic bikes unusually on weekends, even though their overall use of the service is higher on weekends. This may suggest that at least some of these unusual data points are the result of theft or loss, because there is no discernible reason why theft and loss rates should be higher on weekends, and members, since their activity may be subject to greater scrutiny, may be less likely to steal or destroy the bikes.
+
+  Theft and loss cannot be the sole explanation for these unusually long "rides," however. When the x-axis is changed to a basic timeline, rather than days of the week, a pattern emerges that may explain the vast majority of the member outliers.
+
+```{r outliers on timeline 1, echo=FALSE, message=FALSE, warning=FALSE}
+bike_data_v6 %>%
+  group_by(member_casual, started_at) %>%
+  summarize(number_of_rides = n(), ride_length) %>%
+  arrange(member_casual, started_at) %>%
+  ggplot(aes(x = started_at, y = ride_length, color = member_casual,)) + geom_point() + scale_color_discrete(name = "Membership Status") + labs(title = "Ride Duration by Membership Status", 
+ subtitle = "Only rides of more than 12 hours", x = "Time (read Sep '20 -> Aug '21)",  y = "Duration (seconds)",  
+caption = "Based on rider data collected 1 Sep 2020 - 31 Aug 2021")
+```
+
+  Aside from a few extreme data points in late 2020, the member outliers are clustered somewhere under 100,000 seconds. Recall that a day is 86,400 seconds long. This suggests that the member outliers are equivalent to one-day rentals. This pattern becomes clearer when the analysis is narrowed to rides that are between 12 and 48 hours in length.
+
+```{r outliers on timeline 2, echo=FALSE, message=FALSE, warniing=FALSE}
+bike_data_v7 <- bike_data_v6[!(bike_data_v6$ride_length > 169200),]
+bike_data_v7 %>%
+  group_by(member_casual, started_at) %>%
+  summarize(number_of_rides = n(), ride_length) %>%
+  arrange(member_casual, started_at) %>%
+  ggplot(aes(x = started_at, y = ride_length, color = member_casual)) + geom_point() + scale_color_discrete(name = "Membership Status") + labs(title = "Ride Duration by Membership Status", 
+subtitle = "Rides between 12 and 48 hours in length", x = "Time (read Sep '20 -> Aug '21)", y = "Duration (seconds)",  
+ caption = "Based on rider data collected 1 Sep 2020 - 31 Aug 2021")
+```
+
+  Here, the "green line" around the 86,400-second (i.e., 24-hour) mark, representing these clustered member outliers, is immediately apparent.  There also appears to be an increase in unusual usage by members around the holiday season, though this pattern is nowhere near as clear and obvious as the "green line."
+
+  A possible takeaway from the analysis of the outlying data points is that Cyclistic should consider officially sanctioning the practice of one-day (24-hour) rentals. Approximately 1 in 2500 uses of the service are of this type as is, and creating an institutional structure that allows for it could create more opportunities to sell bike rental time in general, including to nonmembers. Nonmember one-day rentals may be a major untapped market, because they appear to be even more likely than members to use the service in this way.
+
+### Closing recommendations
+
+  Based on this analysis, the following suggestions may benefit Cyclistic's business:
+
+* Create incentives for casual weekend users to become members.
+
+  This could take the form of a reduced price for members on weekends, or else an increase in nonmember prices to drive nonmembers toward membership. Further analysis is likely necessary to determine which of these strategies is most likely to be effective.
+
+* Allow one-day rentals.
+
+  This seems to be verging on common practice in some contexts anyhow. Allowing it officially could open new avenues for increasing revenue and new customer bases who may be more likely to use Cyclistic services if this becomes available. Further analysis, including customer surveys, could determine whether the pattern of one-day rental-style usage reflects actual customer desires or whether it is an artifact of data collection practices.
+
+* Create benefits of membership for commuters.
+
+  This could help increase the likelihood of the relatively few commuter customers who are not members eventually joining Cyclistic.
